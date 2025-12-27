@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint .",
     "test:db": "node --env-file=.env scripts/test-db.js"
   },
   "dependencies": {
