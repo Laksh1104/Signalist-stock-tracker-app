@@ -182,7 +182,7 @@
         @apply border-6 border-gray-800 left-0 hidden w-[1024px] h-auto max-w-none lg:block rounded-xl shadow-2xl;
     }
     .form-title {
-        @apply text-4xl font-bold text-gray-400 mb-10;
+        @apply text-3xl font-bold text-gray-400 mb-5;
     }
     .form-label {
         @apply text-sm font-medium text-gray-400;
