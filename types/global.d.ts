@@ -1,5 +1,5 @@
 declare global {
-    type SignInFormData = {
+    type LogInFormData = {
         email: string;
         password: string;
     };
@@ -158,7 +158,7 @@ declare global {
         alertData: Alert[] | undefined;
     };
 
-    type    MarketNewsArticle = {
+    type MarketNewsArticle = {
         id: number;
         headline: string;
         summary: string;
