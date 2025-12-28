@@ -106,21 +106,25 @@ export const sendDailyNewsSummary = inngest.createFunction(
 
         // Step #4: (placeholder) Send the emails
         await step.run('send-news-emails', async () => {
-            await Promise.all(
+            const results = await Promise.allSettled(
                 userNewsSummaries.map(async ({ user, newsContent }) => {
                     if (!newsContent) return false;
-                    try {
-                        await sendNewsSummaryEmail({
-                            email: user.email,
-                            date: getFormattedTodayDate(),
-                            newsContent,
-                        });
-                    } catch (err) {
-                        console.error('Failed to send email to:', user.email, err);
-                    }
+                    return await sendNewsSummaryEmail({
+                        email: user.email,
+                        date: getFormattedTodayDate(),
+                        newsContent,
+                    });
                 })
             );
+
+            // Log failures
+            results.forEach((r, idx) => {
+                if (r.status === 'rejected') {
+                    console.error('Failed to send email to:', userNewsSummaries[idx].user.email, r.reason);
+                }
+            });
         });
+
 
         return { success: true, message: 'Daily news summary emails sent successfully' }
     }
