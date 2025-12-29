@@ -3,6 +3,11 @@
 import { connectToDatabase } from '@/database/mongoose';
 import { Watchlist } from '@/database/models/watchlist.model';
 
+import { revalidatePath } from 'next/cache';
+import { auth } from '../better-auth/auth';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+
 export async function getWatchlistSymbolsByEmail(email: string): Promise<string[]> {
   if (!email) return [];
 
@@ -26,3 +31,4 @@ export async function getWatchlistSymbolsByEmail(email: string): Promise<string[
     return [];
   }
 }
+
