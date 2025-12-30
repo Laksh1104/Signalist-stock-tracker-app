@@ -1,47 +1,69 @@
-'use client';
+"use client";
+import React, { useMemo, useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
+import { addToWatchlist, removeFromWatchlist } from "@/lib/actions/watchlist.actions";
+import {Star, StarIcon, Stars, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { Star } from 'lucide-react';
+// Minimal WatchlistButton implementation to satisfy page requirements.
+// This component focuses on UI contract only. It toggles local state and
+// calls onWatchlistChange if provided. Styling hooks match globals.css.
 
-const WatchlistButton = ({
-  symbol,
-  company,
-  isInWatchlist,
-  showTrashIcon,
-  type = 'button',
-  onWatchlistChange,
-}: WatchlistButtonProps) => {
-  const handleClick = () => {
-    if (onWatchlistChange) {
-      onWatchlistChange(symbol, !isInWatchlist);
-    }
-    // Logic for adding/removing from watchlist would go here
-    console.log(`${isInWatchlist ? 'Removing' : 'Adding'} ${symbol} (${company}) ${isInWatchlist ? 'from' : 'to'} watchlist`);
+const WatchlistButton = ({ symbol, company, isInWatchlist, showTrashIcon = false, type = "button", onWatchlistChange }: WatchlistButtonProps) => {
+  const [added, setAdded] = useState<boolean>(!!isInWatchlist);
+
+  const label = useMemo(() => {
+    if (type === "icon") return added ? "" : "";
+    return added ? "Remove from Watchlist" : "Add to Watchlist";
+  }, [added, type]);
+
+  const toggleWatchlist = async () => {
+    const result = added ? await removeFromWatchlist(symbol) : await addToWatchlist(symbol, company);
+
+    if (result.success) {
+      setAdded(!added);
+      toast.success(added ? `${symbol} removed from watchlist` : `${symbol} added to watchlist`,
+        {description: `${company} has been ${added ? "removed" : "added"} to your watchlist`,
+    });
+
+    // Notify parent component of watchlist change for state synchronization
+    onWatchlistChange?.(symbol, !added);
+  }
+};
+
+// Debounce the toggle function to prevent rapid API calls (300ms delay)
+const debouncedToggle = useDebounce(toggleWatchlist, 300);
+
+// Click handler for optimistic UI updates
+  const handleClick = (e: React.MouseEvent) => {
+    // Prevent event bubbling and default behavior
+    e.stopPropagation();
+    e.preventDefault();
+    
+    debouncedToggle();
   };
 
-  if (type === 'icon') {
+  if (type === "icon") {
     return (
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={handleClick}
-        className={isInWatchlist ? 'text-yellow-500' : 'text-gray-400'}
-      >
-        <Star className={isInWatchlist ? 'fill-current' : ''} />
-      </Button>
+        <button
+            title={added ? `Remove ${symbol} from watchlist` : `Add ${symbol} to watchlist`}
+            aria-label={added ? `Remove ${symbol} from watchlist` : `Add ${symbol} to watchlist`}
+            className={`watchlist-icon-btn ${added ? "watchlist-icon-added" : ""}`}
+            onClick={handleClick}
+        >
+          <Star fill={added ? 'currentColor' : 'none'}/>
+        </button>
     );
   }
 
   return (
-    <Button
-      variant="outline"
-      onClick={handleClick}
-      className="flex items-center gap-2 border-gray-700 bg-transparent text-gray-100 hover:bg-gray-800 hover:text-yellow-500"
-    >
-      <Star className={isInWatchlist ? 'fill-yellow-500 text-yellow-500' : ''} />
-      {isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
-    </Button>
+    <button
+    className={`watchlist-btn ${added ? 'watchlist-remove' : ''}`}
+    onClick={handleClick}
+  >
+    {showTrashIcon && added ? <Trash2 /> : null}
+    <span>{label}</span>
+  </button>
   );
 };
 
