@@ -9,6 +9,8 @@ export interface Alert extends Document {
     threshold: number;
     triggeredAt?: Date | null;
     isActive: boolean;
+    notificationFailed?: boolean;
+    notificationError?: string;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -23,10 +25,14 @@ const AlertSchema = new Schema<Alert>(
       threshold: { type: Number, required: true, min: 0 },
       triggeredAt: { type: Date, default: null },
       isActive: { type: Boolean, default: true },
+      notificationFailed: { type: Boolean, default: false },
+      notificationError: { type: String, default: null },
     },
     { timestamps: true }
   );
 
+// Prevents duplicate alerts: a user cannot have multiple alerts for the same stock
+// with the same condition (upper/lower) and target price. Different alert names are allowed.
 AlertSchema.index({ userId: 1, symbol: 1, alertType: 1, threshold: 1 }, { unique: true });
 AlertSchema.index({ isActive: 1, triggeredAt: 1 });
 

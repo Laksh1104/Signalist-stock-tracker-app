@@ -250,7 +250,7 @@ export async function getCurrentPrice(symbol: string): Promise<number | null> {
         return data?.c ?? null;
     } catch (error) {
         console.error(`Failed to fetch current price for ${symbol}:`, error);
-        throw new Error(`Failed to fetch current price for ${symbol}`);
+        return null;
     }
 }
     

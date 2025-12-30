@@ -20,19 +20,7 @@ export const createAlert = async (input: AlertData) => {
             return { success: false, error: 'Threshold must be greater than 0' };
         }
 
-        // Check if alert already exists
-        const existingAlert = await Alert.findOne({
-            userId: session.user.id,
-            symbol: input.symbol.toUpperCase(),
-            alertType: input.alertType,
-            threshold: input.threshold,
-        });
-
-        if(existingAlert) {
-            return { success: false, error: 'Alert already exists' };
-        }
-
-        // Create alert
+        // Create alert - duplicate detection is handled by the unique index
         const alert = new Alert({
             userId: session.user.id,
             symbol: input.symbol.toUpperCase(),
@@ -46,9 +34,15 @@ export const createAlert = async (input: AlertData) => {
 
         await alert.save(); 
 
-        return { success: true,   message: "Alert created successfully", };
-    } catch (error) {
+        return { success: true, message: "Alert created successfully" };
+    } catch (error: any) {
         console.error("Error creating alert: ", error);
+        
+        // MongoDB duplicate key error (unique index violation)
+        if (error?.code === 11000) {
+            return { success: false, error: 'You already have an alert for this stock with the same condition and target price' };
+        }
+        
         return { success: false, error: 'Failed to create alert' };
     }
 }
@@ -89,37 +83,5 @@ export const deleteAlert = async (alertId: string) => {
     } catch (error) {
         console.error("Error deleting alert: ", error);
         return { success: false, error: 'Failed to delete alert' };
-    }
-}
-
-export const getActiveAlerts = async () => {
-    try {
-        await connectToDatabase(); 
-
-        const alerts = await Alert.find({
-            isActive: true,
-            triggeredAt: null,
-        }).lean();
-
-        return JSON.parse(JSON.stringify(alerts));
-    } catch (error) {
-        console.error("Error getting active alerts: ", error);
-        return [];
-    }
-}
-
-export const markAlertAsTriggered = async (alertId: string) => {
-    try {
-        await connectToDatabase(); 
-      
-        await Alert.updateOne(
-            { _id: alertId },
-            { $set: { triggeredAt: new Date(), isActive: false } }
-          );
-
-        return { success: true, message: 'Alert marked as triggered' };
-    } catch (error) {
-        console.error("markAlertTriggered Error:", error);
-        return { success: false, error: 'Failed to mark alert as triggered' };
     }
 }

@@ -5,7 +5,7 @@ import {getAllUsersForNewsEmail, getUserEmailById} from "@/lib/actions/user.acti
 import { getWatchlistSymbolsByEmail } from "@/lib/actions/watchlist.actions";
 import { getNews, getCurrentPrice } from "@/lib/actions/finnhub.actions";
 import { getFormattedTodayDate } from "@/lib/utils";
-import { getActiveAlerts, markAlertAsTriggered } from "@/lib/actions/alert.actions";
+import { getActiveAlerts, markAlertAsTriggered, markAlertNotificationFailed } from "@/lib/actions/alert.internal";
 
 export const sendSignUpEmail = inngest.createFunction(
     { id: 'sign-up-email' },
@@ -159,34 +159,51 @@ export const checkPriceAlerts = inngest.createFunction(
         );
         });
 
-        // Step #3: Send emails for triggered alerts
+        // Step #3: Mark alerts as triggered and send emails
+        // Order: mark first, then send email to prevent duplicate emails on retry
         await step.run('send-alert-emails', async () => {
             for (const result of results) {
-                // console.log('Alert result:', result);
-                if (result.triggered) {
-                    const { alert, currentPrice } = result;
-                    
-                    try{
-                        const userEmail = await getUserEmailById(alert.userId);
-                        if (!userEmail) continue;
-
-                        await sendStockAlertEmail({
-                            email: userEmail,
-                            symbol: alert.symbol,
-                            company: alert.company,
-                            currentPrice: currentPrice,
-                            targetPrice: alert.threshold,
-                            alertType: alert.alertType,
-                        });
-
-                        // Mark alert as triggered
-                        await markAlertAsTriggered(alert._id);
-
-                    } catch (e) {
-                        console.error(`Failed to send alert email for ${alert.symbol}:`, e);
-                    }
+                if (!result.triggered) continue;
+                
+                const { alert, currentPrice } = result;
+                
+                // Step 3a: Mark alert as triggered first (idempotent, uses compare-and-set)
+                const markResult = await markAlertAsTriggered(alert._id);
+                
+                if (!markResult.success) {
+                    console.error(`Failed to mark alert as triggered for ${alert.symbol}:`, markResult.error);
+                    continue; // Skip sending email if we couldn't mark it
                 }
                 
+                if (markResult.alreadyTriggered) {
+                    // Already processed by another run, skip to avoid duplicate email
+                    console.log(`Alert for ${alert.symbol} already triggered, skipping email`);
+                    continue;
+                }
+                
+                // Step 3b: Now send the email (alert is already marked, safe from duplicates)
+                try {
+                    const userEmail = await getUserEmailById(alert.userId);
+                    if (!userEmail) {
+                        console.error(`No email found for user ${alert.userId}, alert ${alert.symbol}`);
+                        await markAlertNotificationFailed(alert._id, 'User email not found');
+                        continue;
+                    }
+
+                    await sendStockAlertEmail({
+                        email: userEmail,
+                        symbol: alert.symbol,
+                        company: alert.company,
+                        currentPrice: currentPrice,
+                        targetPrice: alert.threshold,
+                        alertType: alert.alertType,
+                    });
+                } catch (e) {
+                    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+                    console.error(`Failed to send alert email for ${alert.symbol}:`, e);
+                    // Mark notification as failed for monitoring/retry purposes
+                    await markAlertNotificationFailed(alert._id, errorMessage);
+                }
             }
         });
 

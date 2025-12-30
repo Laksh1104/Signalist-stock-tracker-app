@@ -1,7 +1,6 @@
 'use client';
 
-"use client";
-
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { createAlert } from "@/lib/actions/alert.actions";
@@ -16,6 +15,7 @@ export default function AlertModal({ open, setOpen, alertData }: AlertModalProps
     register,
     handleSubmit,
     control,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<AlertData>({
     defaultValues: {
@@ -27,6 +27,16 @@ export default function AlertModal({ open, setOpen, alertData }: AlertModalProps
     },
     mode: "onBlur",
   });
+
+  useEffect(() => {
+    reset({
+      symbol: alertData?.symbol ?? "",
+      company: alertData?.company ?? "",
+      alertName: `${alertData?.symbol ?? ""} Price Alert`,
+      alertType: "upper",
+      threshold: undefined as any,
+    }, { keepErrors: false });
+  }, [alertData?.symbol, alertData?.company, reset]);
 
   const onSubmit = async (data: AlertData) => {
     const result = await createAlert(data);
