@@ -216,7 +216,7 @@ export const getStockDetails = cache(async (symbol: string) => {
         const financialsData = financials as FinancialsData;
 
         // Check if we got valid quote and profile data
-        if(!quoteData?.c || !profileData?.name) {
+        if(!quoteData?.c == null || !profileData?.name) {
             throw new Error(`Invalid stock data for ${cleanSymbol}`);}
 
         const changePercent = quoteData.dp || 0;
@@ -227,7 +227,7 @@ export const getStockDetails = cache(async (symbol: string) => {
             company: profileData?.name,
             currentPrice: quoteData.c,
             changePercent,
-            priceFormatted: formatPrice(quoteData.c),
+            priceFormatted: formatPrice(quoteData.c || 0),
             changeFormatted: formatChangePercent(changePercent),
             peRatio: peRatio ? peRatio.toFixed(1) : '-',
             marketCapFormatted: formatMarketCapValue(profileData?.marketCapitalization || 0),

@@ -37,6 +37,7 @@ export async function getWatchlistSymbolsByEmail(email: string): Promise<string[
 // Add stock to watchlist
 export const addToWatchlist = async(symbol: string, company: string)=> {
   try {
+    await connectToDatabase(); 
     const session = await auth.api.getSession({
       headers: await headers(),
         });
@@ -73,6 +74,7 @@ export const addToWatchlist = async(symbol: string, company: string)=> {
 // Remove stock from watchlist
 export const removeFromWatchlist = async(symbol: string)=> {
   try {
+    await connectToDatabase(); 
     const session = await auth.api.getSession({
       headers: await headers(),
     });
@@ -96,6 +98,7 @@ export const removeFromWatchlist = async(symbol: string)=> {
 // Get user's watchlist
 export const getUserWatchlist = async () => {
   try{
+     await connectToDatabase(); 
     const session = await auth.api.getSession({
       headers: await headers(),
     });
@@ -126,23 +129,33 @@ export const getWatchlistWithData = async () => {
     if(watchlist.length === 0) return [];
 
     const stocksWithData = await Promise.all(watchlist.map(async (item) => {
-      const stockData = await getStockDetails(item.symbol);
-
-      if (!stockData) {
-        console.warn(`Stock data not found for ${item.symbol}`);
-        return item;
+      try {
+        const stockData = await getStockDetails(item.symbol);
+    
+        return {
+          company: stockData.company,
+          symbol: stockData.symbol,
+          currentPrice: stockData.currentPrice,
+          priceFormatted: stockData.priceFormatted,
+          changeFormatted: stockData.changeFormatted,
+          changePercent: stockData.changePercent,
+          marketCap: stockData.marketCapFormatted,
+          peRatio: stockData.peRatio,
+        };
+      } catch (error) {
+        console.warn(`Failed to fetch stock data for ${item.symbol}:`, error);
+        // Return fallback with basic info from watchlist item
+        return {
+          company: item.company || item.symbol,
+          symbol: item.symbol,
+          currentPrice: 0,
+          priceFormatted: '-',
+          changeFormatted: '-',
+          changePercent: 0,
+          marketCap: '-',
+          peRatio: '-',
+        };
       }
-
-      return {
-        company: stockData.company,
-        symbol: stockData.symbol,
-        currentPrice: stockData.currentPrice,
-        priceFormatted: stockData.priceFormatted,
-        changeFormatted: stockData.changeFormatted,
-        changePercent: stockData.changePercent,
-        marketCap: stockData.marketCapFormatted,
-        peRatio: stockData.peRatio,
-      };
     }));
 
     return JSON.parse(JSON.stringify(stocksWithData));
