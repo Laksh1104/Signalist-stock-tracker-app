@@ -262,6 +262,10 @@ export const COMPANY_FINANCIALS_WIDGET_CONFIG = (symbol: string) => ({
     largeChartUrl: '',
 });
 
+export const TICKER_TAPE_WIDGET_CONFIG = {
+    symbols: 'FOREXCOM:SPXUSD,FOREXCOM:NSXUSD,FOREXCOM:DJI,FX:EURUSD,BITSTAMP:BTCUSD,BITSTAMP:ETHUSD,CMCMARKETS:GOLD,AMEX:VOO,TVC:SILVER',
+};
+
 export const POPULAR_STOCK_SYMBOLS = [
     // Tech Giants (the big technology companies)
     'AAPL',

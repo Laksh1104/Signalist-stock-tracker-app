@@ -1,4 +1,4 @@
-import React from 'react';
+
 import TradingViewWidget from "@/components/TradingViewWidget";
 import WatchlistButton from "@/components/WatchlistButton";
 import {
@@ -9,32 +9,47 @@ import {
     COMPANY_PROFILE_WIDGET_CONFIG,
     COMPANY_FINANCIALS_WIDGET_CONFIG
 } from "@/lib/constants";
+import { notFound } from "next/navigation";
 import {auth} from "@/lib/better-auth/auth";
 import {headers} from "next/headers";
 import {getWatchlistSymbolsByEmail} from "@/lib/actions/watchlist.actions";
+import {getStockDetails} from "@/lib/actions/finnhub.actions";
+import {getUserWatchlist} from "@/lib/actions/watchlist.actions";
+import { WatchlistItem } from "@/database/models/watchlist.model";
 
-const StockDetails = async ({ params }: StockDetailsPageProps) => {
+export default async function StockDetails ({ params }: StockDetailsPageProps) {
     const { symbol } = await params;
     const scriptUrl = "https://s3.tradingview.com/external-embedding/embed-widget-"
 
-    const session = await auth.api.getSession({ headers: await headers() });
-    const watchlist = session?.user?.email ? await getWatchlistSymbolsByEmail(session.user.email) : [];
-    const isInWatchlist = watchlist.includes(symbol.toUpperCase());
+    let stockData;
+    try {
+        stockData = await getStockDetails(symbol.toUpperCase());
+    } catch (error) {
+        notFound();
+    }
+    
+    const watchlist = await getUserWatchlist();
+    const isInWatchlist = watchlist.some((item: WatchlistItem) => item.symbol === symbol.toUpperCase());
+
+    
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="flex min-h-screen p-4 md:p-6 lg:p-8">
+            <section className ="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
             {/* Left Column */}
-            <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-6">
                 <TradingViewWidget
                     scriptUrl={`${scriptUrl}symbol-info.js`}
                     config={SYMBOL_INFO_WIDGET_CONFIG(symbol)}
                     height={170}
                 />
+
                 <TradingViewWidget
                     scriptUrl={`${scriptUrl}advanced-chart.js`}
                     config={CANDLE_CHART_WIDGET_CONFIG(symbol)}
                     height={600}
                 />
+
                 <TradingViewWidget
                     scriptUrl={`${scriptUrl}advanced-chart.js`}
                     config={BASELINE_WIDGET_CONFIG(symbol)}
@@ -43,17 +58,22 @@ const StockDetails = async ({ params }: StockDetailsPageProps) => {
             </div>
 
             {/* Right Column */}
-            <div className="flex flex-col gap-8">
-                <WatchlistButton
+            <div className="flex flex-col gap-6">
+                <div className="flex items-center justify-between">
+                      <WatchlistButton
                     symbol={symbol}
-                    company={symbol}
+                    company={stockData.company}
                     isInWatchlist={isInWatchlist}
+                    type="button"
                 />
+                </div>
+              
                 <TradingViewWidget
                     scriptUrl={`${scriptUrl}technical-analysis.js`}
                     config={TECHNICAL_ANALYSIS_WIDGET_CONFIG(symbol)}
                     height={400}
                 />
+
                 <TradingViewWidget
                     scriptUrl={`${scriptUrl}financials.js`}
                     config={COMPANY_FINANCIALS_WIDGET_CONFIG(symbol)}
@@ -65,8 +85,9 @@ const StockDetails = async ({ params }: StockDetailsPageProps) => {
                     height={440}
                 />
             </div>
+            </section>
         </div>
     );
 }
 
-export default StockDetails;
+

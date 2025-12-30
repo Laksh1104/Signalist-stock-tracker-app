@@ -3,13 +3,23 @@ import {
     HEATMAP_WIDGET_CONFIG,
     MARKET_DATA_WIDGET_CONFIG,
     MARKET_OVERVIEW_WIDGET_CONFIG,
-    TOP_STORIES_WIDGET_CONFIG
+    TOP_STORIES_WIDGET_CONFIG,
+    TICKER_TAPE_WIDGET_CONFIG
 } from "@/lib/constants";
 
 const Home = () => {
     const scriptUrl = "https://s3.tradingview.com/external-embedding/embed-widget-"
     return (
         <div className="flex min-h-screen home-wrapper">
+            {/* Ticker Tape */}
+            <div className="w-full mb-1">
+                <TradingViewWidget
+                    scriptUrl="https://widgets.tradingview-widget.com/w/en/tv-ticker-tape.js"
+                    config={TICKER_TAPE_WIDGET_CONFIG}
+                    widgetType="webcomponent"
+                    webComponentTag="tv-ticker-tape"
+                />
+            </div>
             <section className={ "grid w-full gap-8 home-section"}>
                 <div className="md:col-span-1 xl:col-span-1">
                     <TradingViewWidget
