@@ -238,5 +238,20 @@ export const getStockDetails = cache(async (symbol: string) => {
         throw new Error(`Failed to fetch stock details for ${symbol}`);
     }
 });
+
+export async function getCurrentPrice(symbol: string): Promise<number | null> {
+    try {
+        const token = process.env.FINNHUB_API_KEY ?? NEXT_PUBLIC_FINNHUB_API_KEY;
+        if (!token) return null;
+
+        const url = `${FINNHUB_BASE_URL}/quote?symbol=${encodeURIComponent(symbol.toUpperCase())}&token=${token}`;
+        const data = await fetchJSON<QuoteData>(url);
+        
+        return data?.c ?? null;
+    } catch (error) {
+        console.error(`Failed to fetch current price for ${symbol}:`, error);
+        throw new Error(`Failed to fetch current price for ${symbol}`);
+    }
+}
     
 

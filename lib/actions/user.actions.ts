@@ -1,6 +1,7 @@
 'use server';
 
 import {connectToDatabase} from "@/database/mongoose";
+import { ObjectId } from 'mongodb';
 
 export const getAllUsersForNewsEmail = async () => {
     try {
@@ -23,3 +24,17 @@ export const getAllUsersForNewsEmail = async () => {
         return []
     }
 }
+
+export const getUserEmailById = async (userId: string) => {
+    try {
+        const mongoose = await connectToDatabase();
+        const db = mongoose.connection.db;
+        if (!db) throw new Error('Mongoose connection not connected');
+
+        const user = await db.collection('user').findOne({ _id: new ObjectId(userId)  });
+        return user?.email || null;
+    } catch (e) {
+        console.error('Error fetching user email:', e);
+        return null;
+    }
+};

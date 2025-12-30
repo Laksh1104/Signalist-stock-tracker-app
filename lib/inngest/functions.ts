@@ -1,10 +1,11 @@
 import {inngest} from "@/lib/inngest/client";
 import {NEWS_SUMMARY_EMAIL_PROMPT, PERSONALIZED_WELCOME_EMAIL_PROMPT} from "@/lib/inngest/prompts";
-import {sendNewsSummaryEmail, sendWelcomeEmail} from "@/lib/nodemailer";
-import {getAllUsersForNewsEmail} from "@/lib/actions/user.actions";
+import {sendNewsSummaryEmail, sendWelcomeEmail, sendStockAlertEmail} from "@/lib/nodemailer";
+import {getAllUsersForNewsEmail, getUserEmailById} from "@/lib/actions/user.actions";
 import { getWatchlistSymbolsByEmail } from "@/lib/actions/watchlist.actions";
-import { getNews } from "@/lib/actions/finnhub.actions";
+import { getNews, getCurrentPrice } from "@/lib/actions/finnhub.actions";
 import { getFormattedTodayDate } from "@/lib/utils";
+import { getActiveAlerts, markAlertAsTriggered } from "@/lib/actions/alert.actions";
 
 export const sendSignUpEmail = inngest.createFunction(
     { id: 'sign-up-email' },
@@ -129,3 +130,67 @@ export const sendDailyNewsSummary = inngest.createFunction(
         return { success: true, message: 'Daily news summary emails sent successfully' }
     }
 )
+
+export const checkPriceAlerts = inngest.createFunction(
+    { id: 'check-price-alerts' },
+    [{ event: 'app/check.price.alerts' }, { cron: '*/5 * * * *' }], // Every 5 minutes
+
+    async ({ step }) => {
+
+        // Step #1: Get all active alerts
+        const alerts = await step.run('get-active-alerts', getActiveAlerts);
+
+        if(!alerts || alerts.length === 0) return { success: false, message: 'No active alerts found' };
+
+        // Step #2: For each alert, get stock details and check if the price has reached the threshold
+        const results = await step.run('evaluate-alerts', async () => {
+            return Promise.all(alerts.map(async (alert: any) => {
+                const currentPrice = await getCurrentPrice(alert.symbol);
+
+                if(currentPrice === null) return { success: false, message: `No price found for ${alert.symbol}` };
+
+                const conditionMet = alert.alertType === 'upper' ? currentPrice >= alert.threshold : currentPrice <= alert.threshold;
+
+                if (conditionMet) {
+                    return { alertId: alert._id, triggered: true, alert, currentPrice };
+                }
+                return { alertId: alert._id, triggered: false, alert, currentPrice };
+            })
+        );
+        });
+
+        // Step #3: Send emails for triggered alerts
+        await step.run('send-alert-emails', async () => {
+            for (const result of results) {
+                // console.log('Alert result:', result);
+                if (result.triggered) {
+                    const { alert, currentPrice } = result;
+                    
+                    try{
+                        const userEmail = await getUserEmailById(alert.userId);
+                        if (!userEmail) continue;
+
+                        await sendStockAlertEmail({
+                            email: userEmail,
+                            symbol: alert.symbol,
+                            company: alert.company,
+                            currentPrice: currentPrice,
+                            targetPrice: alert.threshold,
+                            alertType: alert.alertType,
+                        });
+
+                        // Mark alert as triggered
+                        await markAlertAsTriggered(alert._id);
+
+                    } catch (e) {
+                        console.error(`Failed to send alert email for ${alert.symbol}:`, e);
+                    }
+                }
+                
+            }
+        });
+
+        return { success: true, message: 'Price alerts checked and emails sent successfully' }
+    }
+)
+

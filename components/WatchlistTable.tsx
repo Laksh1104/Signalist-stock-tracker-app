@@ -6,12 +6,16 @@ import { Button } from "@/components/ui/button";
 import  WatchlistButton  from "@/components/WatchlistButton";
 import { useRouter } from "next/navigation";
 import { cn, getChangeColorClass } from "@/lib/utils";
+import { useState } from "react";
+import AlertModal from "@/components/AlertModal"; 
 
 export function WatchlistTable({ watchlist }: WatchlistTableProps) {
     const router = useRouter();
     const handleWatchlistChange = () => {
         router.refresh();
     }
+    const [alertModalOpen, setAlertModalOpen] = useState(false);
+    const [selectedStock, setSelectedStock] = useState<{ symbol: string; company: string } | null>(null);
   
 
     return (
@@ -36,7 +40,16 @@ export function WatchlistTable({ watchlist }: WatchlistTableProps) {
                         <TableCell className="table-cell"> {item.marketCap || '-'}</TableCell>
                         <TableCell className="table-cell"> {item.peRatio || '-'}</TableCell>
                         <TableCell>
-                            <Button className='add-alert'>Add alert</Button>
+                        <Button 
+                                className='add-alert'
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedStock({ symbol: item.symbol, company: item.company });
+                                    setAlertModalOpen(true);
+                                }}
+                            >
+                                Add alert
+                            </Button>
                         </TableCell>
                         <TableCell>
                             <WatchlistButton symbol={item.symbol} company={item.company} isInWatchlist={true} showTrashIcon={true} type="icon" onWatchlistChange={handleWatchlistChange} />
@@ -45,6 +58,17 @@ export function WatchlistTable({ watchlist }: WatchlistTableProps) {
                 )) }
             </TableBody>
         </Table>
+        {selectedStock && (
+            <AlertModal
+            key={selectedStock.symbol} 
+                open={alertModalOpen}
+                setOpen={(open) => {
+                    setAlertModalOpen(open);
+                    if (!open) setSelectedStock(null);  // Clear on close
+                }}
+                alertData={{ symbol: selectedStock.symbol, company: selectedStock.company }}
+            />
+        )}
         </>
     );
 }
