@@ -18,17 +18,27 @@ const WatchlistButton = ({ symbol, company, isInWatchlist, showTrashIcon = false
   }, [added, type]);
 
   const toggleWatchlist = async () => {
-    const result = added ? await removeFromWatchlist(symbol) : await addToWatchlist(symbol, company);
-
-    if (result.success) {
+    try {
+      const result = added 
+        ? await removeFromWatchlist(symbol) 
+        : await addToWatchlist(symbol, company);
+  
+      if (!result.success) {
+        toast.error(result.error || "Failed to update watchlist");
+        return;
+      }
+  
       setAdded(!added);
-      toast.success(added ? `${symbol} removed from watchlist` : `${symbol} added to watchlist`,
-        {description: `${company} has been ${added ? "removed" : "added"} to your watchlist`,
-    });
-
-    // Notify parent component of watchlist change for state synchronization
-    onWatchlistChange?.(symbol, !added);
-  }
+      toast.success(
+        added ? `${symbol} removed from watchlist` : `${symbol} added to watchlist`,
+        { description: `${company} has been ${added ? "removed" : "added"} to your watchlist` }
+      );
+  
+      // Notify parent component of watchlist change for state synchronization
+      onWatchlistChange?.(symbol, !added);
+    } catch (error) {
+      toast.error("An unexpected error occurred");
+    }
 };
 
 // Debounce the toggle function to prevent rapid API calls (300ms delay)

@@ -50,7 +50,7 @@ export default function SearchCommand({ renderAs = 'button', label = 'Add stock'
       }
     };
     fetchFreshStocks();
-  }, [open]);
+  }, [open, initialStocks]);
 
   const handleSearch = async () => {
     if(!isSearchMode) return setStocks(initialStocks);
