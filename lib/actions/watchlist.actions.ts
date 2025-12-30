@@ -67,7 +67,7 @@ export const addToWatchlist = async(symbol: string, company: string)=> {
 
   } catch(error) {
     console.error("Error adding to watchlist: ", error);
-    throw new Error('Failed to add stock to watchlist.');
+    return { success: false, error: 'Failed to add stock to watchlist.' };
   }
 }
 
@@ -91,7 +91,7 @@ export const removeFromWatchlist = async(symbol: string)=> {
 
   } catch (error) {
     console.error('Error removing from watchlist: ', error);
-    throw new Error('Failed to remove from watchlist.');
+    return { success: false, error: 'Failed to remove from watchlist.' };
   }
 }
 
