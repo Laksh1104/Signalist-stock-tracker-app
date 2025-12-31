@@ -64,7 +64,7 @@ Monitor engagement, stock trends, and user activity for data-driven decisions.
 ## 🌐 Live Deployment
 
 🚀 **Live App (Vercel):**  
-[https://signalist-stock-tracker-app-pink-mu.vercel.app/]
+https://signalist-stock-tracker-app-pink-mu.vercel.app/
 
 ---
 
