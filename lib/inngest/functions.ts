@@ -5,7 +5,7 @@ import {getAllUsersForNewsEmail, getUserEmailById} from "@/lib/actions/user.acti
 import { getWatchlistSymbolsByEmail } from "@/lib/actions/watchlist.actions";
 import { getNews, getCurrentPrice } from "@/lib/actions/finnhub.actions";
 import { getFormattedTodayDate } from "@/lib/utils";
-import { getActiveAlerts, markAlertAsTriggered, markAlertNotificationFailed } from "@/lib/actions/alert.internal";
+import { getActiveAlerts, markAlertAsTriggered, deleteTriggeredAlert, markAlertNotificationFailed } from "@/lib/actions/alert.internal";
 
 export const sendSignUpEmail = inngest.createFunction(
     { id: 'sign-up-email' },
@@ -159,37 +159,34 @@ export const checkPriceAlerts = inngest.createFunction(
         );
         });
 
-        // Step #3: Mark alerts as triggered and send emails
-        // Order: mark first, then send email to prevent duplicate emails on retry
+        // Step #3: Send emails and delete alerts using atomic mark-then-delete pattern
         await step.run('send-alert-emails', async () => {
             for (const result of results) {
                 if (!result.triggered) continue;
                 
                 const { alert, currentPrice } = result;
                 
-                // Step 3a: Mark alert as triggered first (idempotent, uses compare-and-set)
-                const markResult = await markAlertAsTriggered(alert._id);
-                
-                if (!markResult.success) {
-                    console.error(`Failed to mark alert as triggered for ${alert.symbol}:`, markResult.error);
-                    continue; // Skip sending email if we couldn't mark it
-                }
-                
-                if (markResult.alreadyTriggered) {
-                    // Already processed by another run, skip to avoid duplicate email
-                    console.log(`Alert for ${alert.symbol} already triggered, skipping email`);
-                    continue;
-                }
-                
-                // Step 3b: Now send the email (alert is already marked, safe from duplicates)
                 try {
-                    const userEmail = await getUserEmailById(alert.userId);
-                    if (!userEmail) {
-                        console.error(`No email found for user ${alert.userId}, alert ${alert.symbol}`);
-                        await markAlertNotificationFailed(alert._id, 'User email not found');
+                    // Atomically mark the alert as triggered first to prevent race conditions
+                    const markResult = await markAlertAsTriggered(alert._id);
+                    if (!markResult.success) {
+                        // Alert was already marked/processed by another worker, skip it
+                        console.log(`Alert ${alert._id} (${alert.symbol}) already marked or not found, skipping`);
                         continue;
                     }
 
+                    const userEmail = await getUserEmailById(alert.userId);
+                    if (!userEmail) {
+                        console.error(`No email found for user ${alert.userId}, alert ${alert.symbol}`);
+                        // Mark alert as having failed notification so it can be discovered for cleanup
+                        await markAlertNotificationFailed(
+                            alert._id, 
+                            `No email found for user ${alert.userId}`
+                        );
+                        console.log(`Alert ${alert._id} marked as notificationFailed for later cleanup`);
+                        continue;
+                    }
+        
                     await sendStockAlertEmail({
                         email: userEmail,
                         symbol: alert.symbol,
@@ -198,11 +195,50 @@ export const checkPriceAlerts = inngest.createFunction(
                         targetPrice: alert.threshold,
                         alertType: alert.alertType,
                     });
+        
+                    // Delete alert after successful email with retry logic for transient errors
+                    const maxRetries = 3;
+                    let deleteSuccess = false;
+                    let lastError: unknown = null;
+
+                    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                        try {
+                            const deleteResult = await deleteTriggeredAlert(alert._id);
+                            if (deleteResult.success && deleteResult.deletedCount > 0) {
+                                deleteSuccess = true;
+                                break;
+                            }
+                        } catch (deleteError) {
+                            lastError = deleteError;
+                            console.warn(
+                                `Delete attempt ${attempt}/${maxRetries} failed for alert ${alert._id}:`,
+                                deleteError instanceof Error ? deleteError.message : deleteError
+                            );
+                            // Brief delay before retry (exponential backoff)
+                            if (attempt < maxRetries) {
+                                await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt)));
+                            }
+                        }
+                    }
+
+                    if (!deleteSuccess) {
+                        console.error(
+                            `Failed to delete alert after ${maxRetries} attempts`,
+                            { alertId: alert._id, symbol: alert.symbol, lastError }
+                        );
+                        // Throw to ensure the workflow is aware of the failure
+                        throw new Error(
+                            `Failed to delete triggered alert ${alert._id} (${alert.symbol}) after ${maxRetries} attempts: ${
+                                lastError instanceof Error ? lastError.message : String(lastError)
+                            }`
+                        );
+                    }
+                    
                 } catch (e) {
-                    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-                    console.error(`Failed to send alert email for ${alert.symbol}:`, e);
-                    // Mark notification as failed for monitoring/retry purposes
-                    await markAlertNotificationFailed(alert._id, errorMessage);
+                    console.error(`Failed to process alert for ${alert.symbol}:`, e);
+                    // Alert may be marked but not deleted - will need manual cleanup or separate cleanup job
+                    // Re-throw to let Inngest know about the failure for observability
+                    throw e;
                 }
             }
         });

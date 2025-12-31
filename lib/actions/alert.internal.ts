@@ -1,6 +1,3 @@
-// Internal alert functions for background jobs only - NOT exposed as server actions
-// These functions should only be imported by server-side code (e.g., Inngest functions)
-
 import { connectToDatabase } from '@/database/mongoose';
 import { Alert } from '@/database/models/alert.model';
 
@@ -21,51 +18,77 @@ export const getActiveAlerts = async () => {
 }
 
 /**
- * Atomically marks an alert as triggered using compare-and-set.
- * Only updates if the alert is still active and not yet triggered (idempotent guard).
- * Returns { success: true, alreadyTriggered: false } if we triggered it,
- * { success: true, alreadyTriggered: true } if it was already triggered,
- * { success: false } on error.
+ * Atomically marks an alert as triggered by setting triggeredAt.
+ * Only succeeds if the alert exists and hasn't been triggered yet (triggeredAt: null).
+ * This prevents race conditions where multiple workers might try to process the same alert.
+ * 
+ * @returns The updated document if successful, null if alert was already triggered or doesn't exist
  */
 export const markAlertAsTriggered = async (alertId: string) => {
     try {
-        await connectToDatabase(); 
-      
-        // Atomic compare-and-set: only update if still active and not triggered
-        const result = await Alert.updateOne(
-            { _id: alertId, isActive: true, triggeredAt: null },
-            { $set: { triggeredAt: new Date(), isActive: false } }
-        );
+        await connectToDatabase();
+        
+        const updatedAlert = await Alert.findOneAndUpdate(
+            { _id: alertId, triggeredAt: null },
+            { $set: { triggeredAt: new Date() } },
+            { new: true }
+        ).lean();
 
-        if (result.modifiedCount === 0) {
-            // Alert was already triggered or doesn't exist
-            return { success: true, alreadyTriggered: true, message: 'Alert already triggered or not found' };
+        if (!updatedAlert) {
+            return { success: false, error: 'Alert not found or already triggered' };
         }
 
-        return { success: true, alreadyTriggered: false, message: 'Alert marked as triggered' };
+        return { success: true, alert: JSON.parse(JSON.stringify(updatedAlert)) };
     } catch (error) {
-        console.error("markAlertTriggered Error:", error);
-        return { success: false, alreadyTriggered: false, error: 'Failed to mark alert as triggered' };
+        console.error("markAlertAsTriggered Error:", error);
+        return { success: false, error: 'Failed to mark alert as triggered' };
     }
 }
 
 /**
- * Marks an alert's notification as failed (for retry/monitoring purposes).
- * Called when email sending fails after the alert was marked as triggered.
+ * Deletes an alert that has been marked as triggered.
+ * Only deletes if triggeredAt is set (not null) to ensure the alert was properly marked.
+ * 
+ * @throws Error if the alert was not deleted (deletedCount === 0)
  */
-export const markAlertNotificationFailed = async (alertId: string, errorMessage: string) => {
+export const deleteTriggeredAlert = async (alertId: string) => {
+    try {
+        await connectToDatabase();
+        
+        // Only delete alerts that have been marked as triggered
+        const result = await Alert.deleteOne({ 
+            _id: alertId, 
+            triggeredAt: { $ne: null } 
+        });
+
+        if (result.deletedCount === 0) {
+            throw new Error(`Failed to delete alert ${alertId}: alert not found or not marked as triggered (deletedCount: 0)`);
+        }
+
+        return { success: true, message: 'Alert deleted after trigger', deletedCount: result.deletedCount };
+    } catch (error) {
+        console.error("deleteTriggeredAlert Error:", error);
+        throw error;
+    }
+};
+
+export const markAlertNotificationFailed = async (alertId: string, errorMessage?: string) => {
     try {
         await connectToDatabase();
         
         await Alert.updateOne(
             { _id: alertId },
-            { $set: { notificationFailed: true, notificationError: errorMessage } }
+            { 
+                $set: { 
+                    notificationFailed: true,
+                    notificationError: errorMessage || 'Unknown error'
+                } 
+            }
         );
 
         return { success: true };
     } catch (error) {
         console.error("markAlertNotificationFailed Error:", error);
-        return { success: false };
+        return { success: false, error: 'Failed to mark alert notification as failed' };
     }
 }
-
