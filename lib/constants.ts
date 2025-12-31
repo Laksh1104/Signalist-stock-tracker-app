@@ -26,14 +26,25 @@ export const PREFERRED_INDUSTRIES = [
     { value: 'Consumer Goods', label: 'Consumer Goods' },
 ];
 
+// Alert options
 export const ALERT_TYPE_OPTIONS = [
     { value: 'upper', label: 'Upper' },
     { value: 'lower', label: 'Lower' },
 ];
 
-export const CONDITION_OPTIONS = [
-    { value: 'greater', label: 'Greater than (>)' },
-    { value: 'less', label: 'Less than (<)' },
+export const ALERT_FREQUENCY_OPTIONS = [
+    { value: '1m', label: 'Every minute' },
+    { value: '15m', label: 'Every 15 minutes' },
+    { value: '30m', label: 'Every 30 minutes' },
+    { value: '1h', label: 'Every hour' },
+    { value: '6h', label: 'Every 6 hours' },
+    { value: '12h', label: 'Every 12 hours' },
+    { value: '1d', label: 'Once per day' },
+];
+
+export const ALERT_CONDITION_OPTIONS = [
+    { value: 'upper', label: 'Greater than (>)' },
+    { value: 'lower', label: 'Less than (<)' },
 ];
 
 // TradingView Charts

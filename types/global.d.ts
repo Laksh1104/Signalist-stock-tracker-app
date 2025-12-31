@@ -183,17 +183,21 @@ declare global {
         className?: string;
     };
 
+    type AlertCondition = 'upper' | 'lower';
+    
+    // type AlertFrequency = '1m' | '15m' | '30m' | '1h' |'6h' |'12h' | '1d';
+
     type AlertData = {
         symbol: string;
         company: string;
         alertName: string;
-        alertType: 'upper' | 'lower';
-        threshold: string;
+        alertType: AlertCondition;
+        threshold: number;
     };
 
     type AlertModalProps = {
         alertId?: string;
-        alertData?: AlertData;
+        alertData?: { symbol: string; company: string };
         action?: string;
         open: boolean;
         setOpen: (open: boolean) => void;
@@ -216,10 +220,11 @@ declare global {
         symbol: string;
         company: string;
         alertName: string;
-        currentPrice: number;
-        alertType: 'upper' | 'lower';
+        alertType: AlertCondition;
         threshold: number;
-        changePercent?: number;
+        triggeredAt?: string | null;
+        isActive?: boolean;
+        
     };
 }
 
