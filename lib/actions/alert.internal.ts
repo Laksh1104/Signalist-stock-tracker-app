@@ -17,15 +17,57 @@ export const getActiveAlerts = async () => {
     }
 }
 
+/**
+ * Atomically marks an alert as triggered by setting triggeredAt.
+ * Only succeeds if the alert exists and hasn't been triggered yet (triggeredAt: null).
+ * This prevents race conditions where multiple workers might try to process the same alert.
+ * 
+ * @returns The updated document if successful, null if alert was already triggered or doesn't exist
+ */
+export const markAlertAsTriggered = async (alertId: string) => {
+    try {
+        await connectToDatabase();
+        
+        const updatedAlert = await Alert.findOneAndUpdate(
+            { _id: alertId, triggeredAt: null },
+            { $set: { triggeredAt: new Date() } },
+            { new: true }
+        ).lean();
+
+        if (!updatedAlert) {
+            return { success: false, error: 'Alert not found or already triggered' };
+        }
+
+        return { success: true, alert: JSON.parse(JSON.stringify(updatedAlert)) };
+    } catch (error) {
+        console.error("markAlertAsTriggered Error:", error);
+        return { success: false, error: 'Failed to mark alert as triggered' };
+    }
+}
+
+/**
+ * Deletes an alert that has been marked as triggered.
+ * Only deletes if triggeredAt is set (not null) to ensure the alert was properly marked.
+ * 
+ * @throws Error if the alert was not deleted (deletedCount === 0)
+ */
 export const deleteTriggeredAlert = async (alertId: string) => {
     try {
         await connectToDatabase();
         
-        await Alert.deleteOne({ _id: alertId });
+        // Only delete alerts that have been marked as triggered
+        const result = await Alert.deleteOne({ 
+            _id: alertId, 
+            triggeredAt: { $ne: null } 
+        });
 
-        return { success: true, message: 'Alert deleted after trigger' };
+        if (result.deletedCount === 0) {
+            throw new Error(`Failed to delete alert ${alertId}: alert not found or not marked as triggered (deletedCount: 0)`);
+        }
+
+        return { success: true, message: 'Alert deleted after trigger', deletedCount: result.deletedCount };
     } catch (error) {
         console.error("deleteTriggeredAlert Error:", error);
-        return { success: false, error: 'Failed to delete alert' };
+        throw error;
     }
 };
