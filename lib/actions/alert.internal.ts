@@ -71,3 +71,24 @@ export const deleteTriggeredAlert = async (alertId: string) => {
         throw error;
     }
 };
+
+export const markAlertNotificationFailed = async (alertId: string, errorMessage?: string) => {
+    try {
+        await connectToDatabase();
+        
+        await Alert.updateOne(
+            { _id: alertId },
+            { 
+                $set: { 
+                    notificationFailed: true,
+                    notificationError: errorMessage || 'Unknown error'
+                } 
+            }
+        );
+
+        return { success: true };
+    } catch (error) {
+        console.error("markAlertNotificationFailed Error:", error);
+        return { success: false, error: 'Failed to mark alert notification as failed' };
+    }
+}

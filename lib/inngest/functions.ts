@@ -5,7 +5,7 @@ import {getAllUsersForNewsEmail, getUserEmailById} from "@/lib/actions/user.acti
 import { getWatchlistSymbolsByEmail } from "@/lib/actions/watchlist.actions";
 import { getNews, getCurrentPrice } from "@/lib/actions/finnhub.actions";
 import { getFormattedTodayDate } from "@/lib/utils";
-import { getActiveAlerts, markAlertAsTriggered, deleteTriggeredAlert } from "@/lib/actions/alert.internal";
+import { getActiveAlerts, markAlertAsTriggered, deleteTriggeredAlert, markAlertNotificationFailed } from "@/lib/actions/alert.internal";
 
 export const sendSignUpEmail = inngest.createFunction(
     { id: 'sign-up-email' },
@@ -178,7 +178,12 @@ export const checkPriceAlerts = inngest.createFunction(
                     const userEmail = await getUserEmailById(alert.userId);
                     if (!userEmail) {
                         console.error(`No email found for user ${alert.userId}, alert ${alert.symbol}`);
-                        // Alert is marked but we can't send email - it will be cleaned up
+                        // Mark alert as having failed notification so it can be discovered for cleanup
+                        await markAlertNotificationFailed(
+                            alert._id, 
+                            `No email found for user ${alert.userId}`
+                        );
+                        console.log(`Alert ${alert._id} marked as notificationFailed for later cleanup`);
                         continue;
                     }
         
