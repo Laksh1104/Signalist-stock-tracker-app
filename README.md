@@ -85,7 +85,7 @@ Make sure you have the following installed on your machine:
 **Cloning the Repository**
 
 ```bash
-git clone https://github.com/Laksh1104/Signalist-stock-tracker-app.git
+git clone https://github.com/Laksh1104/Stox-tracker-app.git
 cd signalist-stock-tracker-app
 ```
 
